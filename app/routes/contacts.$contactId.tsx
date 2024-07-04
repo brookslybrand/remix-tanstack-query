@@ -1,17 +1,42 @@
-import { Form, json, useFetcher, useLoaderData } from "@remix-run/react";
+import {
+  ClientActionFunctionArgs,
+  ClientLoaderFunctionArgs,
+  Form,
+  json,
+  useFetcher,
+  useLoaderData,
+} from "@remix-run/react";
 import type { FunctionComponent } from "react";
 
 import type { ContactRecord } from "../data";
 import { getContact, updateContact } from "../data";
 import { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import invariant from "tiny-invariant";
+import {
+  contactDetailQuery,
+  ensureContactQuery as ensureContactDetailQuery,
+  queryClient,
+} from "~/utils/query.client";
+import { getContactId } from "~/utils/get-contact-id";
 
 export const action = async ({ params, request }: ActionFunctionArgs) => {
   invariant(params.contactId, "Missing contactId param");
   const formData = await request.formData();
-  return updateContact(params.contactId, {
+  const newContact = await updateContact(params.contactId, {
     favorite: formData.get("favorite") === "true",
   });
+  return newContact;
+};
+
+export const clientAction = async ({
+  serverAction,
+  params,
+}: ClientActionFunctionArgs) => {
+  const contactId = getContactId(params);
+  const contact = await serverAction<typeof action>();
+  const query = contactDetailQuery(contactId);
+  queryClient.setQueryData(query.queryKey, contact);
+  return contact;
 };
 
 export const loader = async ({ params }: LoaderFunctionArgs) => {
@@ -22,6 +47,23 @@ export const loader = async ({ params }: LoaderFunctionArgs) => {
   }
   return json({ contact });
 };
+
+export const clientLoader = async ({
+  serverLoader,
+  params,
+}: ClientLoaderFunctionArgs) => {
+  const contact = await ensureContactDetailQuery({
+    contactId: getContactId(params),
+    queryFn: async () => {
+      const { contact } = await serverLoader<typeof loader>();
+      return contact;
+    },
+  });
+
+  return { contact };
+};
+
+clientLoader.hydrate = true;
 
 export default function Contact() {
   const { contact } = useLoaderData<typeof loader>();

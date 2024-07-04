@@ -11,11 +11,17 @@ import {
   useLoaderData,
   useNavigation,
   useSubmit,
+  ClientLoaderFunctionArgs,
 } from "@remix-run/react";
 import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
 import appStylesHref from "./app.css?url";
 import { createEmptyContact, getContacts } from "./data";
 import { useEffect } from "react";
+import {
+  cacheAllContacts,
+  getContactsFromCache,
+  queryClient,
+} from "./utils/query.client";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: appStylesHref },
@@ -27,11 +33,48 @@ export const action = async () => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const url = new URL(request.url);
-  const q = url.searchParams.get("q");
+  const q = getQuery(request);
   const contacts = await getContacts(q);
   return json({ contacts, q });
 };
+
+function getQuery(request: Request) {
+  const url = new URL(request.url);
+  return url.searchParams.get("q");
+}
+
+export const clientLoader = async ({
+  request,
+  serverLoader,
+}: ClientLoaderFunctionArgs) => {
+  console.log("revalidating");
+  const q = getQuery(request);
+
+  const fetchAndCacheContacts = async () => {
+    const data = await serverLoader<typeof loader>();
+    cacheAllContacts(data.contacts);
+    return { ...data, q };
+  };
+
+  // if there's a query string, always fetch from the server
+  if (q) {
+    return await fetchAndCacheContacts();
+  }
+
+  // Check for existing data in the cache
+  const contacts = getContactsFromCache();
+  if (contacts.length > 0) {
+    console.log(queryClient.getQueriesData({ queryKey: ["contacts"] })[0]);
+
+    return { contacts, q };
+  }
+
+  console.log("fetch it all again");
+  // If there's no query string and no data in the cache, fetch from the server
+  return await fetchAndCacheContacts();
+};
+
+clientLoader.hydrate = true;
 
 export default function App() {
   const { contacts, q } = useLoaderData<typeof loader>();
