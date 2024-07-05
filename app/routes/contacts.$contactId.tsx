@@ -14,7 +14,7 @@ import { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import invariant from "tiny-invariant";
 import {
   contactDetailQuery,
-  ensureContactQuery as ensureContactDetailQuery,
+  getContactFromCache,
   queryClient,
 } from "~/utils/query.client";
 import { getContactId } from "~/utils/get-contact-id";
@@ -52,18 +52,14 @@ export const clientLoader = async ({
   serverLoader,
   params,
 }: ClientLoaderFunctionArgs) => {
-  const contact = await ensureContactDetailQuery({
-    contactId: getContactId(params),
-    queryFn: async () => {
-      const { contact } = await serverLoader<typeof loader>();
-      return contact;
-    },
-  });
-
-  return { contact };
+  const contactId = getContactId(params);
+  const contact = getContactFromCache(contactId);
+  // Don't cache the contact here, it gets cached in root
+  if (contact) {
+    return { contact };
+  }
+  return await serverLoader<typeof loader>();
 };
-
-clientLoader.hydrate = true;
 
 export default function Contact() {
   const { contact } = useLoaderData<typeof loader>();

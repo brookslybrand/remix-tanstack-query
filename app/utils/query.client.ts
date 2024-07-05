@@ -41,7 +41,6 @@ export function getContactFromCache(contactId: string) {
 
 export function cacheContactDetail(contact: ContactRecord) {
   const { queryKey } = createContactDetailQuery({ contactId: contact.id });
-  console.log("caching this", queryKey, contact);
   queryClient.setQueryData(queryKey, contact);
 }
 

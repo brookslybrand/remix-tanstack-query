@@ -1,25 +1,52 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, redirect, useLoaderData, useNavigate } from "@remix-run/react";
-import invariant from "tiny-invariant";
+import {
+  ClientActionFunctionArgs,
+  ClientLoaderFunctionArgs,
+  Form,
+  redirect,
+  useLoaderData,
+  useNavigate,
+} from "@remix-run/react";
 
 import { getContact, updateContact } from "../data";
+import { getContactId } from "~/utils/get-contact-id";
+import { cacheContactDetail, getContactFromCache } from "~/utils/query.client";
 
 export const action = async ({ params, request }: ActionFunctionArgs) => {
-  invariant(params.contactId, "Missing contactId param");
+  const contactId = getContactId(params);
   const formData = await request.formData();
   const updates = Object.fromEntries(formData);
-  await updateContact(params.contactId, updates);
-  return redirect(`/contacts/${params.contactId}`);
+  return await updateContact(contactId, updates);
+};
+
+export const clientAction = async ({
+  serverAction,
+}: ClientActionFunctionArgs) => {
+  const contact = await serverAction<typeof action>();
+  cacheContactDetail(contact);
+  return redirect(`/contacts/${contact.id}`);
 };
 
 export const loader = async ({ params }: LoaderFunctionArgs) => {
-  invariant(params.contactId, "Missing contactId param");
-  const contact = await getContact(params.contactId);
+  const contactId = getContactId(params);
+  const contact = await getContact(contactId);
   if (!contact) {
     throw new Response("Not Found", { status: 404 });
   }
   return json({ contact });
+};
+
+export const clientLoader = async ({
+  serverLoader,
+  params,
+}: ClientLoaderFunctionArgs) => {
+  const contactId = getContactId(params);
+  const contact = getContactFromCache(contactId);
+  if (contact) {
+    return { contact };
+  }
+  return await serverLoader<typeof loader>();
 };
 
 export default function EditContact() {

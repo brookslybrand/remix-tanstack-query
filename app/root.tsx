@@ -12,6 +12,7 @@ import {
   useNavigation,
   useSubmit,
   ClientLoaderFunctionArgs,
+  ClientActionFunctionArgs,
 } from "@remix-run/react";
 import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
 import appStylesHref from "./app.css?url";
@@ -29,7 +30,20 @@ export const links: LinksFunction = () => [
 
 export const action = async () => {
   const contact = await createEmptyContact();
-  return redirect(`/contacts/${contact.id}/edit`);
+  throw redirect(`/contacts/${contact.id}/edit`);
+};
+
+export const clientAction = async ({
+  serverAction,
+}: ClientActionFunctionArgs) => {
+  try {
+    await serverAction<typeof action>();
+  } catch (redirectOrError) {
+    // TODO: add error handling
+    // trigger a refetch so the new contact shows up in the list
+    queryClient.removeQueries({ queryKey: ["contacts"] });
+    throw redirectOrError;
+  }
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -47,7 +61,6 @@ export const clientLoader = async ({
   request,
   serverLoader,
 }: ClientLoaderFunctionArgs) => {
-  console.log("revalidating");
   const q = getQuery(request);
 
   const fetchAndCacheContacts = async () => {
@@ -64,12 +77,9 @@ export const clientLoader = async ({
   // Check for existing data in the cache
   const contacts = getContactsFromCache();
   if (contacts.length > 0) {
-    console.log(queryClient.getQueriesData({ queryKey: ["contacts"] })[0]);
-
     return { contacts, q };
   }
 
-  console.log("fetch it all again");
   // If there's no query string and no data in the cache, fetch from the server
   return await fetchAndCacheContacts();
 };
