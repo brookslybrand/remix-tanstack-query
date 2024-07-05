@@ -20,8 +20,8 @@ import { createEmptyContact, getContacts } from "./data";
 import { useEffect } from "react";
 import {
   cacheAllContacts,
-  getContactsFromCache,
-  queryClient,
+  getAllContactsFromCache,
+  removeAllContactsFromCache,
 } from "./utils/query.client";
 
 export const links: LinksFunction = () => [
@@ -36,23 +36,23 @@ export const action = async () => {
 export const clientAction = async ({
   serverAction,
 }: ClientActionFunctionArgs) => {
+  // TODO: add error handling
   try {
-    await serverAction<typeof action>();
+    await serverAction();
   } catch (redirectOrError) {
-    // TODO: add error handling
     // trigger a refetch so the new contact shows up in the list
-    queryClient.removeQueries({ queryKey: ["contacts"] });
+    removeAllContactsFromCache();
     throw redirectOrError;
   }
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const q = getQuery(request);
+  const q = getSearchParam(request);
   const contacts = await getContacts(q);
   return json({ contacts, q });
 };
 
-function getQuery(request: Request) {
+function getSearchParam(request: Request) {
   const url = new URL(request.url);
   return url.searchParams.get("q");
 }
@@ -61,7 +61,7 @@ export const clientLoader = async ({
   request,
   serverLoader,
 }: ClientLoaderFunctionArgs) => {
-  const q = getQuery(request);
+  const q = getSearchParam(request);
 
   const fetchAndCacheContacts = async () => {
     const data = await serverLoader<typeof loader>();
@@ -75,7 +75,7 @@ export const clientLoader = async ({
   }
 
   // Check for existing data in the cache
-  const contacts = getContactsFromCache();
+  const contacts = getAllContactsFromCache();
   if (contacts.length > 0) {
     return { contacts, q };
   }

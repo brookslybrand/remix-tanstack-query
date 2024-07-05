@@ -12,11 +12,7 @@ import type { ContactRecord } from "../data";
 import { getContact, updateContact } from "../data";
 import { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import invariant from "tiny-invariant";
-import {
-  contactDetailQuery,
-  getContactFromCache,
-  queryClient,
-} from "~/utils/query.client";
+import { cacheContactDetail, getContactFromCache } from "~/utils/query.client";
 import { getContactId } from "~/utils/get-contact-id";
 
 export const action = async ({ params, request }: ActionFunctionArgs) => {
@@ -30,12 +26,9 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
 
 export const clientAction = async ({
   serverAction,
-  params,
 }: ClientActionFunctionArgs) => {
-  const contactId = getContactId(params);
   const contact = await serverAction<typeof action>();
-  const query = contactDetailQuery(contactId);
-  queryClient.setQueryData(query.queryKey, contact);
+  cacheContactDetail(contact);
   return contact;
 };
 

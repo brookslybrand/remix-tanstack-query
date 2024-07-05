@@ -17,6 +17,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   const contactId = getContactId(params);
   const formData = await request.formData();
   const updates = Object.fromEntries(formData);
+  // Whish I somehow knew if clientAction was calling this or not
   return await updateContact(contactId, updates);
 };
 
@@ -25,7 +26,7 @@ export const clientAction = async ({
 }: ClientActionFunctionArgs) => {
   const contact = await serverAction<typeof action>();
   cacheContactDetail(contact);
-  return redirect(`/contacts/${contact.id}`);
+  throw redirect(`/contacts/${contact.id}`);
 };
 
 export const loader = async ({ params }: LoaderFunctionArgs) => {

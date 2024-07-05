@@ -2,28 +2,28 @@ import { remember } from "@epic-web/remember";
 import { QueryClient } from "@tanstack/react-query";
 import { ContactRecord } from "~/data";
 
-export const queryClient = remember("react-query", () => new QueryClient());
+const queryClient = remember("react-query", () => new QueryClient());
+
+const CACHE_KEYS = {
+  CONTACTS: "contacts",
+  DETAIL: "detail",
+} as const;
 
 type ContactQueryParams = {
   contactId: string;
   queryFn?: () => Promise<ContactRecord>;
 };
-export function createContactDetailQuery({
-  contactId,
-  queryFn,
-}: ContactQueryParams) {
+
+function createContactDetailQuery({ contactId, queryFn }: ContactQueryParams) {
   return {
-    queryKey: ["contacts", "detail", contactId],
+    queryKey: [CACHE_KEYS.CONTACTS, CACHE_KEYS.DETAIL, contactId],
     queryFn,
   };
 }
 
-export const contactDetailQuery = (id: string) => ({
-  queryKey: ["contacts", "detail", id],
-  // queryFn: async () => getContact(id), // What could we do here?
-});
+// all contacts helpers
 
-export function getContactsFromCache() {
+export function getAllContactsFromCache() {
   const contacts: ContactRecord[] = [];
   for (const [, contactMaybe] of queryClient.getQueriesData<ContactRecord>({
     queryKey: ["contacts"],
@@ -34,8 +34,22 @@ export function getContactsFromCache() {
   return contacts;
 }
 
+export function cacheAllContacts(contacts: ContactRecord[]) {
+  contacts.forEach((contact) => {
+    const query = createContactDetailQuery({ contactId: contact.id });
+
+    queryClient.setQueryData(query.queryKey, contact);
+  });
+}
+
+export function removeAllContactsFromCache() {
+  queryClient.removeQueries({ queryKey: [CACHE_KEYS.CONTACTS] });
+}
+
+// contact details queries
+
 export function getContactFromCache(contactId: string) {
-  const query = contactDetailQuery(contactId);
+  const query = createContactDetailQuery({ contactId });
   return queryClient.getQueryData<ContactRecord>(query.queryKey);
 }
 
@@ -44,14 +58,7 @@ export function cacheContactDetail(contact: ContactRecord) {
   queryClient.setQueryData(queryKey, contact);
 }
 
-export function ensureContactQuery(args: ContactQueryParams) {
-  return queryClient.ensureQueryData(createContactDetailQuery(args));
-}
-
-export function cacheAllContacts(contacts: ContactRecord[]) {
-  contacts.forEach((contact) => {
-    const query = contactDetailQuery(contact.id);
-
-    queryClient.setQueryData(query.queryKey, contact);
-  });
+export function removeContactFromCache(contactId: string) {
+  const query = createContactDetailQuery({ contactId });
+  queryClient.removeQueries({ queryKey: query.queryKey });
 }
