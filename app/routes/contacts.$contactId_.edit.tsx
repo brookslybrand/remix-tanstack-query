@@ -12,21 +12,30 @@ import {
 import { getContact, updateContact } from "../data";
 import { getContactId } from "~/utils/get-contact-id";
 import { cacheContactDetail, getContactFromCache } from "~/utils/query.client";
+import { useHydrated } from "~/utils/use-hydrated";
 
 export const action = async ({ params, request }: ActionFunctionArgs) => {
   const contactId = getContactId(params);
   const formData = await request.formData();
+  const isClientAction = formData.get("clientAction") === "1";
+  // need to delete the hidden input here since the next step is naive
+  formData.delete("clientAction");
   const updates = Object.fromEntries(formData);
-  // Whish I somehow knew if clientAction was calling this or not
-  return await updateContact(contactId, updates);
+
+  const contact = await updateContact(contactId, updates);
+  const redirectUrl = `/contacts/${contact.id}`;
+  if (isClientAction) {
+    return { contact, redirectUrl };
+  }
+  throw redirect(redirectUrl);
 };
 
 export const clientAction = async ({
   serverAction,
 }: ClientActionFunctionArgs) => {
-  const contact = await serverAction<typeof action>();
+  const { contact, redirectUrl } = await serverAction<typeof action>();
   cacheContactDetail(contact);
-  throw redirect(`/contacts/${contact.id}`);
+  throw redirect(redirectUrl);
 };
 
 export const loader = async ({ params }: LoaderFunctionArgs) => {
@@ -53,6 +62,7 @@ export const clientLoader = async ({
 export default function EditContact() {
   const { contact } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const isHydrated = useHydrated();
 
   return (
     <Form key={contact.id} id="contact-form" method="post">
@@ -97,6 +107,7 @@ export default function EditContact() {
         <textarea defaultValue={contact.notes} name="notes" rows={6} />
       </label>
       <p>
+        <input type="hidden" name="clientAction" value={isHydrated ? 1 : 0} />
         <button type="submit">Save</button>
         <button onClick={() => navigate(-1)} type="button">
           Cancel
